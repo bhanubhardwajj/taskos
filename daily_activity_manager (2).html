@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TaskOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --g: #22c55e; --g-dim: #16a34a; --g-muted: #14532d;
+    --a: #f59e0b; --r: #ef4444;
+    --p: #a78bfa; --p-muted: #2d1b69; --p-dim: #7c3aed;
+    --bg0: #0a0e0a; --bg1: #0f150f; --bg2: #141c14; --bg3: #1a241a;
+    --bgp0: #0a090f; --bgp1: #0f0e17; --bgp2: #141320; --bgp3: #1c1a2e;
+    --bd: #1e2e1e; --bd2: #243824; --bdp: #1e1c30; --bdp2: #2a2540;
+    --t0: #e2f5e2; --t1: #a3c4a3; --t2: #6a8f6a;
+    --tp0: #ede8ff; --tp1: #b8acf0; --tp2: #7a6faa;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #060608; font-family: 'JetBrains Mono', monospace; }
+  body { display: flex; justify-content: center; padding: 16px; }
+
+  #app {
+    width: 100%; max-width: 960px;
+    border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+    min-height: calc(100vh - 32px);
+    transition: background .3s, border-color .3s;
+  }
+  #app.mode-tasks { background: var(--bg0); color: var(--t0); border: 1px solid var(--bd); }
+  #app.mode-journal { background: var(--bgp0); color: var(--tp0); border: 1px solid var(--bdp); }
+
+  /* ── Header ── */
+  .header {
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid; min-width: 0;
+    transition: background .3s, border-color .3s;
+  }
+  .mode-tasks .header { background: var(--bg1); border-color: var(--bd); }
+  .mode-journal .header { background: var(--bgp1); border-color: var(--bdp); }
+  .dot-cluster { display: flex; gap: 6px; flex-shrink: 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ef4444; } .dot-y { background: #f59e0b; } .dot-g { background: #22c55e; }
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; transition: color .3s; white-space: nowrap; flex-shrink: 0; }
+  .mode-tasks .logo { color: var(--g); }
+  .mode-journal .logo { color: var(--p); }
+  .header-meta { margin-left: auto; font-size: 11px; white-space: nowrap; transition: color .3s; flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+  .mode-tasks .header-meta { color: var(--t2); }
+  .mode-journal .header-meta { color: var(--tp2); }
+  .header-time { font-weight: 500; }
+  .mode-tasks .header-time { color: var(--g); }
+  .mode-journal .header-time { color: var(--p); }
+  .header-sep { opacity: 0.35; }
+  @media (max-width: 480px) { .header-sep, #date-str { display: none !important; } }
+  .mob-menu-btn { display: none; background: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 500; }
+  .mode-tasks .mob-menu-btn { border: 1px solid var(--g-dim); color: var(--g); }
+  .mode-tasks .mob-menu-btn:hover { background: var(--g-muted); }
+  .mode-journal .mob-menu-btn { border: 1px solid var(--p-dim); color: var(--p); }
+  .mode-journal .mob-menu-btn:hover { background: var(--p-muted); }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex; border-bottom: 1px solid;
+    transition: background .3s, border-color .3s;
+  }
+  .mode-tasks .tab-bar { background: var(--bg2); border-color: var(--bd); }
+  .mode-journal .tab-bar { background: var(--bgp2); border-color: var(--bdp); }
+  .tab {
+    flex: 1; padding: 10px 16px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    border: none; cursor: pointer; background: none;
+    border-bottom: 2px solid transparent; transition: all .2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .mode-tasks .tab { color: var(--t2); }
+  .mode-tasks .tab:hover { color: var(--t0); background: var(--bg3); }
+  .mode-tasks .tab.active { color: var(--g); border-bottom-color: var(--g); background: var(--bg3); }
+  .mode-journal .tab { color: var(--tp2); }
+  .mode-journal .tab:hover { color: var(--tp0); background: var(--bgp3); }
+  .mode-journal .tab.active { color: var(--p); border-bottom-color: var(--p); background: var(--bgp3); }
+  .tab-badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; }
+  .mode-tasks .tab-badge { background: var(--g-muted); color: var(--g); }
+  .mode-journal .tab-badge { background: var(--p-muted); color: var(--p); }
+
+  /* ── Stats bar (tasks only) ── */
+  .stats-bar { display: grid; grid-template-columns: repeat(4,1fr); border-bottom: 1px solid var(--bd); }
+  .mode-tasks .stats-bar { background: var(--bg2); }
+  .stat { padding: 8px 4px; border-right: 1px solid var(--bd); text-align: center; }
+  .stat:last-child { border-right: none; }
+  .stat-val { font-size: clamp(14px, 3.5vw, 21px); font-weight: 700; line-height: 1; }
+  .stat-lbl { font-size: 9px; color: var(--t2); margin-top: 3px; letter-spacing: .06em; text-transform: uppercase; }
+
+  /* ── Main layout ── */
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* ── Sidebar (tasks) ── */
+  .sidebar { width: 168px; padding: 10px 0; flex-shrink: 0; overflow-y: auto; border-right: 1px solid; transition: background .3s, border-color .3s; }
+  .mode-tasks .sidebar { background: var(--bg1); border-color: var(--bd); }
+  .mode-journal .sidebar { background: var(--bgp1); border-color: var(--bdp); }
+  .sidebar-section { padding: 6px 14px 2px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; margin-top: 6px; }
+  .mode-tasks .sidebar-section { color: var(--t2); }
+  .mode-journal .sidebar-section { color: var(--tp2); }
+  .sidebar-item { padding: 7px 14px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-left: 2px solid transparent; transition: background .1s; user-select: none; }
+  .mode-tasks .sidebar-item { color: var(--t1); }
+  .mode-tasks .sidebar-item:hover { background: var(--bg3); color: var(--t0); }
+  .mode-tasks .sidebar-item.active { color: var(--g); border-left-color: var(--g); background: var(--bg3); }
+  .mode-journal .sidebar-item { color: var(--tp1); }
+  .mode-journal .sidebar-item:hover { background: var(--bgp3); color: var(--tp0); }
+  .mode-journal .sidebar-item.active { color: var(--p); border-left-color: var(--p); background: var(--bgp3); }
+  .sidebar-count { margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+  .mode-tasks .sidebar-count { background: var(--g-muted); color: var(--g); }
+  .mode-journal .sidebar-count { background: var(--p-muted); color: var(--p); }
+
+  /* ── Content area ── */
+  .content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ── Toolbar ── */
+  .toolbar { padding: 10px 12px; border-bottom: 1px solid; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; transition: background .3s, border-color .3s; }
+  .mode-tasks .toolbar { background: var(--bg2); border-color: var(--bd); }
+  .mode-journal .toolbar { background: var(--bgp2); border-color: var(--bdp); }
+  .prompt-wrap { flex: 1; min-width: 140px; display: flex; align-items: center; border: 1px solid; border-radius: 6px; padding: 0 10px; gap: 8px; transition: background .3s, border-color .3s; }
+  .mode-tasks .prompt-wrap { background: var(--bg3); border-color: var(--bd2); }
+  .mode-journal .prompt-wrap { background: var(--bgp3); border-color: var(--bdp2); }
+  .prompt-sign { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .mode-tasks .prompt-sign { color: var(--g); }
+  .mode-journal .prompt-sign { color: var(--p); }
+  .prompt-wrap input { flex: 1; background: none; border: none; outline: none; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 8px 0; min-width: 0; }
+  .mode-tasks .prompt-wrap input { color: var(--t0); caret-color: var(--g); }
+  .mode-tasks .prompt-wrap input::placeholder { color: var(--t2); }
+  .mode-journal .prompt-wrap input { color: var(--tp0); caret-color: var(--p); }
+  .mode-journal .prompt-wrap input::placeholder { color: var(--tp2); }
+  .toolbar-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .btn { background: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap; border: 1px solid; transition: all .15s; }
+  .mode-tasks .btn { border-color: var(--bd2); color: var(--t1); }
+  .mode-tasks .btn:hover { border-color: var(--g); color: var(--g); }
+  .mode-tasks .btn-primary { border-color: var(--g); color: var(--g); }
+  .mode-tasks .btn-primary:hover { background: var(--g-muted); }
+  .mode-journal .btn { border-color: var(--bdp2); color: var(--tp1); }
+  .mode-journal .btn:hover { border-color: var(--p); color: var(--p); }
+  .mode-journal .btn-primary { border-color: var(--p); color: var(--p); }
+  .mode-journal .btn-primary:hover { background: var(--p-muted); }
+  .select-sm { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px 8px; border-radius: 5px; outline: none; cursor: pointer; border: 1px solid; transition: background .3s, border-color .3s; }
+  .mode-tasks .select-sm { background: var(--bg3); border-color: var(--bd2); color: var(--t1); }
+  .mode-tasks .select-sm:focus { border-color: var(--g); }
+  .mode-journal .select-sm { background: var(--bgp3); border-color: var(--bdp2); color: var(--tp1); }
+  .mode-journal .select-sm:focus { border-color: var(--p); }
+
+  /* ── Task list ── */
+  .task-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .task-list::-webkit-scrollbar { width: 4px; }
+  .task-list::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 2px; }
+  .section-header { padding: 4px 14px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 8px; }
+  .mode-tasks .section-header { color: var(--t2); background: var(--bg1); }
+  .section-line { flex: 1; height: 1px; background: var(--bd); }
+  .task-item { padding: 10px 14px; border-bottom: 1px solid var(--bd); display: flex; align-items: flex-start; gap: 8px; transition: background .1s; }
+  .task-item:hover { background: var(--bg2); }
+  .task-item.done { opacity: .45; }
+  .task-item.done .task-title { text-decoration: line-through; color: var(--t2); }
+  .prio-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .prio-high { background: var(--r); } .prio-med { background: var(--a); } .prio-low { background: var(--g-dim); }
+  .task-check { width: 16px; height: 16px; border: 1px solid var(--bd2); border-radius: 3px; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; }
+  .task-check:hover { border-color: var(--g); }
+  .task-check.checked { background: var(--g); border-color: var(--g); }
+  .check-mark { width: 8px; height: 8px; display: none; }
+  .check-mark::before { content: ''; display: block; width: 8px; height: 5px; border-left: 1.5px solid #000; border-bottom: 1.5px solid #000; transform: rotate(-45deg) translateY(-1px); }
+  .task-check.checked .check-mark { display: block; }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 12px; color: var(--t0); line-height: 1.4; word-break: break-word; }
+  .task-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 10px; padding: 1px 7px; border-radius: 3px; font-weight: 500; }
+  .tag-work { background: #1e3a5f; color: #60a5fa; }
+  .tag-personal { background: #2d1b69; color: #a78bfa; }
+  .tag-health { background: #14532d; color: #4ade80; }
+  .tag-learning { background: #451a03; color: #fb923c; }
+  .tag-other { background: #1c1c1c; color: #9ca3af; }
+  .task-time { font-size: 10px; color: var(--t2); }
+  .del-btn { opacity: 0; background: none; border: none; color: var(--r); font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+  .task-item:hover .del-btn { opacity: 1; }
+  .empty-state { padding: 48px 20px; text-align: center; font-size: 12px; }
+  .mode-tasks .empty-state { color: var(--t2); }
+  .mode-journal .empty-state { color: var(--tp2); }
+  .empty-icon { font-size: 28px; margin-bottom: 12px; }
+
+  /* ── Footer ── */
+  .footer { padding: 7px 14px; border-top: 1px solid; font-size: 10px; display: flex; gap: 14px; flex-wrap: wrap; transition: background .3s, border-color .3s; }
+  .mode-tasks .footer { background: var(--bg1); border-color: var(--bd); color: var(--t2); }
+  .mode-tasks .footer span { color: var(--g); }
+  .mode-journal .footer { background: var(--bgp1); border-color: var(--bdp); color: var(--tp2); }
+  .mode-journal .footer span { color: var(--p); }
+
+  /* ── Gratitude journal ── */
+  #page-journal { flex: 1; display: flex; min-height: 0; }
+  .j-sidebar { width: 168px; flex-shrink: 0; border-right: 1px solid var(--bdp); background: var(--bgp1); overflow-y: auto; padding: 10px 0; }
+  .j-content { flex: 1; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
+  .j-content::-webkit-scrollbar { width: 4px; }
+  .j-content::-webkit-scrollbar-thumb { background: var(--bdp2); border-radius: 2px; }
+
+  .j-date-header {
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--bdp);
+    background: var(--bgp2);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .j-date-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800; color: var(--p); letter-spacing: .06em; text-transform: uppercase; }
+  .j-streak { margin-left: auto; font-size: 10px; color: var(--tp2); display: flex; align-items: center; gap: 6px; }
+  .j-streak-val { color: var(--p); font-weight: 700; font-size: 12px; }
+  .j-progress-bar { height: 2px; background: var(--bdp2); border-radius: 1px; margin: 0 18px; }
+  .j-progress-fill { height: 100%; background: var(--p); border-radius: 1px; transition: width .4s; }
+  .j-progress-label { padding: 4px 18px 8px; font-size: 9px; color: var(--tp2); letter-spacing: .06em; display: flex; justify-content: space-between; }
+
+  .j-prompts { padding: 10px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .j-prompt-card {
+    background: var(--bgp2);
+    border: 1px solid var(--bdp);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .j-prompt-card.filled { border-color: var(--p-dim); }
+  .j-prompt-head {
+    padding: 10px 14px 8px;
+    display: flex; align-items: flex-start; gap: 10px;
+    border-bottom: 1px solid var(--bdp);
+    background: var(--bgp3);
+  }
+  .j-prompt-num { font-size: 9px; color: var(--p); font-weight: 700; letter-spacing: .08em; padding-top: 2px; flex-shrink: 0; }
+  .j-prompt-text { font-size: 11px; color: var(--tp0); line-height: 1.5; flex: 1; }
+  .j-prompt-check { width: 14px; height: 14px; border: 1px solid var(--bdp2); border-radius: 3px; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; }
+  .j-prompt-card.filled .j-prompt-check { background: var(--p-dim); border-color: var(--p-dim); }
+  .j-prompt-card.filled .j-prompt-check::after { content: ''; display: block; width: 7px; height: 4px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translateY(-1px); }
+  .j-textarea {
+    width: 100%; background: none; border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;
+    padding: 10px 14px; min-height: 68px;
+    color: var(--tp1); caret-color: var(--p);
+  }
+  .j-textarea::placeholder { color: var(--tp2); }
+
+  .j-past { flex: 1; overflow-y: auto; }
+  .j-past-entry { border-bottom: 1px solid var(--bdp); }
+  .j-past-toggle {
+    width: 100%; background: none; border: none; padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--tp1);
+    cursor: pointer; display: flex; align-items: center; gap: 8px; text-align: left;
+  }
+  .j-past-toggle:hover { background: var(--bgp3); }
+  .j-past-date { color: var(--p); font-weight: 500; }
+  .j-past-meta { margin-left: auto; font-size: 10px; color: var(--tp2); }
+  .j-past-body { padding: 0 14px 12px; display: none; }
+  .j-past-body.open { display: block; }
+  .j-past-item { margin-top: 8px; }
+  .j-past-q { font-size: 10px; color: var(--tp2); margin-bottom: 3px; }
+  .j-past-a { font-size: 11px; color: var(--tp1); line-height: 1.5; padding-left: 8px; border-left: 2px solid var(--p-dim); }
+
+  /* ── Mobile drawer ── */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; }
+  .overlay.open { display: block; }
+  .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 200px; overflow-y: auto; padding: 14px 0; z-index: 101; transform: translateX(-100%); transition: transform .2s; }
+  .drawer.open { transform: translateX(0); }
+  .mode-tasks .drawer { background: var(--bg1); border-right: 1px solid var(--bd); }
+  .mode-journal .drawer { background: var(--bgp1); border-right: 1px solid var(--bdp); }
+  .drawer-close { display: block; margin: 0 14px 10px auto; background: none; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; border: 1px solid; }
+  .mode-tasks .drawer-close { border-color: var(--bd2); color: var(--t1); }
+  .mode-journal .drawer-close { border-color: var(--bdp2); color: var(--tp1); }
+
+  @media (max-width: 640px) {
+    body { padding: 0; }
+    #app { border-radius: 0; min-height: 100vh; border-left: none; border-right: none; }
+    .sidebar, .j-sidebar { display: none; }
+    .mob-menu-btn { display: inline-block; }
+    .stat-lbl { display: none; }
+    .toolbar-controls { width: 100%; }
+    .j-prompts { padding: 8px 12px 16px; gap: 10px; }
+    .j-date-header { padding: 12px 14px 8px; }
+  }
+  @media (max-width: 380px) {
+    .btn, .select-sm { font-size: 10px; padding: 5px 7px; }
+    .tab { font-size: 10px; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app" class="mode-tasks">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="dot-cluster"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+    <div class="logo" id="logo">TaskOS</div>
+    <button class="mob-menu-btn" id="mob-btn" onclick="openDrawer()">&#9776; filters</button>
+    <div class="header-meta"><span class="header-time" id="clock">--:--:--</span><span class="header-sep">&nbsp;|&nbsp;</span><span id="date-str">---</span></div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab active" id="tab-tasks" onclick="switchTab('tasks')">
+      &#9632; Tasks <span class="tab-badge" id="tab-task-badge">0</span>
+    </button>
+    <button class="tab" id="tab-journal" onclick="switchTab('journal')">
+      &#9670; Gratitude <span class="tab-badge" id="tab-journal-badge">0/5</span>
+    </button>
+  </div>
+
+  <!-- ══ TASKS PAGE ══ -->
+  <div id="page-tasks" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-val" id="s-total" style="color:var(--t0)">0</div><div class="stat-lbl">Total</div></div>
+      <div class="stat"><div class="stat-val" id="s-done" style="color:var(--g)">0</div><div class="stat-lbl">Done</div></div>
+      <div class="stat"><div class="stat-val" id="s-pending" style="color:var(--a)">0</div><div class="stat-lbl">Pending</div></div>
+      <div class="stat"><div class="stat-val" id="s-pct" style="color:var(--t1)">0%</div><div class="stat-lbl">Progress</div></div>
+    </div>
+    <div class="main">
+      <div class="sidebar" id="desktop-sidebar">
+        <div class="sidebar-section">Views</div>
+        <div class="sidebar-item active" onclick="setFilter('all',this)">&#9632; All Tasks <span class="sidebar-count" id="cnt-all">0</span></div>
+        <div class="sidebar-item" onclick="setFilter('pending',this)">&#9633; Pending <span class="sidebar-count" id="cnt-pending">0</span></div>
+        <div class="sidebar-item" onclick="setFilter('done',this)">&#10003; Done <span class="sidebar-count" id="cnt-done">0</span></div>
+        <div class="sidebar-section">Priority</div>
+        <div class="sidebar-item" onclick="setFilter('high',this)"><span style="color:var(--r)">&#9679;</span> High</div>
+        <div class="sidebar-item" onclick="setFilter('med',this)"><span style="color:var(--a)">&#9679;</span> Medium</div>
+        <div class="sidebar-item" onclick="setFilter('low',this)"><span style="color:var(--g-dim)">&#9679;</span> Low</div>
+        <div class="sidebar-section">Category</div>
+        <div class="sidebar-item" onclick="setFilter('work',this)"><span class="tag tag-work">work</span></div>
+        <div class="sidebar-item" onclick="setFilter('personal',this)"><span class="tag tag-personal">personal</span></div>
+        <div class="sidebar-item" onclick="setFilter('health',this)"><span class="tag tag-health">health</span></div>
+        <div class="sidebar-item" onclick="setFilter('learning',this)"><span class="tag tag-learning">learn</span></div>
+      </div>
+      <div class="content">
+        <div class="toolbar">
+          <div class="prompt-wrap">
+            <span class="prompt-sign">$</span>
+            <input type="text" id="task-input" placeholder='add task --title "..."' />
+          </div>
+          <div class="toolbar-controls">
+            <select class="select-sm" id="sel-cat">
+              <option value="work">work</option>
+              <option value="personal">personal</option>
+              <option value="health">health</option>
+              <option value="learning">learning</option>
+              <option value="other">other</option>
+            </select>
+            <select class="select-sm" id="sel-prio">
+              <option value="med">med</option>
+              <option value="high">high</option>
+              <option value="low">low</option>
+            </select>
+            <button class="btn btn-primary" onclick="addTask()">+ exec</button>
+            <button class="btn" onclick="clearDone()">purge done</button>
+          </div>
+        </div>
+        <div class="task-list" id="task-list"></div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>kernel:</span> ready &nbsp;
+      <span>mem:</span> <span id="mem-use">0</span> tasks &nbsp;
+      <span>session:</span> <span id="sess-time">0s</span>
+    </div>
+  </div>
+
+  <!-- ══ JOURNAL PAGE ══ -->
+  <div id="page-journal" style="display:none;flex:1;min-height:0;flex-direction:column;">
+    <div id="page-journal-inner" style="display:flex;flex:1;min-height:0;">
+      <!-- Journal sidebar: past entries -->
+      <div class="j-sidebar">
+        <div class="sidebar-section">Past entries</div>
+        <div id="j-past-list"><div style="padding:12px 14px;font-size:11px;color:var(--tp2)">no past entries yet</div></div>
+      </div>
+      <!-- Journal main -->
+      <div class="j-content">
+        <div class="j-date-header">
+          <div class="j-date-title" id="j-date-title">Today</div>
+          <div class="j-streak"><span>streak</span> <span class="j-streak-val" id="j-streak">0</span> <span>days</span></div>
+        </div>
+        <div class="j-progress-bar" style="margin-top:10px;">
+          <div class="j-progress-fill" id="j-progress" style="width:0%"></div>
+        </div>
+        <div class="j-progress-label">
+          <span id="j-filled-count">0 of 5 prompts answered</span>
+          <span id="j-save-status" style="color:var(--p)"></span>
+        </div>
+        <div class="j-prompts" id="j-prompts"></div>
+        <div class="footer" style="margin-top:auto;">
+          <span>module:</span> gratitude.journal &nbsp;
+          <span>prompts:</span> daily-5 &nbsp;
+          <span>streak:</span> <span id="j-streak-foot">0</span> days
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- Mobile overlay/drawer -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">&#215; close</button>
+  <!-- Tasks filters (shown when on tasks tab) -->
+  <div id="drawer-tasks-content">
+    <div class="sidebar-section">Views</div>
+    <div class="sidebar-item active" onclick="setFilter('all',this);closeDrawer()">&#9632; All Tasks <span class="sidebar-count" id="d-cnt-all">0</span></div>
+    <div class="sidebar-item" onclick="setFilter('pending',this);closeDrawer()">&#9633; Pending <span class="sidebar-count" id="d-cnt-pending">0</span></div>
+    <div class="sidebar-item" onclick="setFilter('done',this);closeDrawer()">&#10003; Done <span class="sidebar-count" id="d-cnt-done">0</span></div>
+    <div class="sidebar-section">Priority</div>
+    <div class="sidebar-item" onclick="setFilter('high',this);closeDrawer()"><span style="color:var(--r)">&#9679;</span> High</div>
+    <div class="sidebar-item" onclick="setFilter('med',this);closeDrawer()"><span style="color:var(--a)">&#9679;</span> Medium</div>
+    <div class="sidebar-item" onclick="setFilter('low',this);closeDrawer()"><span style="color:var(--g-dim)">&#9679;</span> Low</div>
+    <div class="sidebar-section">Category</div>
+    <div class="sidebar-item" onclick="setFilter('work',this);closeDrawer()"><span class="tag tag-work">work</span></div>
+    <div class="sidebar-item" onclick="setFilter('personal',this);closeDrawer()"><span class="tag tag-personal">personal</span></div>
+    <div class="sidebar-item" onclick="setFilter('health',this);closeDrawer()"><span class="tag tag-health">health</span></div>
+    <div class="sidebar-item" onclick="setFilter('learning',this);closeDrawer()"><span class="tag tag-learning">learn</span></div>
+  </div>
+  <!-- Journal past entries (shown when on journal tab) -->
+  <div id="drawer-journal-content" style="display:none;">
+    <div class="sidebar-section">Past entries</div>
+    <div id="drawer-j-past-list"><div style="padding:12px 14px;font-size:11px;color:var(--tp2)">no past entries yet</div></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════ STATE ══════════════ */
+let tasks = [], taskFilter = 'all', sessionStart = Date.now(), currentTab = 'tasks';
+const TASKS_KEY = 'taskos-v1', JOURNAL_KEY = 'taskos-journal-v1';
+
+/* ══════════════ GRATITUDE PROMPTS ══════════════ */
+const ALL_PROMPTS = [
+  "What is one small thing that made you smile today?",
+  "Who is someone you're grateful to have in your life, and why?",
+  "What is a challenge you faced recently that taught you something valuable?",
+  "Describe a moment today when you felt at peace or content.",
+  "What is something about your body or health you appreciate?",
+  "What opportunity are you thankful for right now?",
+  "What simple pleasure did you enjoy today?",
+  "What is something in your environment (home, city, nature) you're grateful for?",
+  "Who showed you kindness recently, even in a small way?",
+  "What skill or ability are you glad you have?",
+  "What is a memory you're grateful to carry with you?",
+  "What are you looking forward to, and why are you grateful for that anticipation?",
+  "What went better than expected recently?",
+  "What technology or tool are you grateful for today?",
+  "What moment of connection did you experience recently?",
+  "What is something you take for granted that you'd miss if it were gone?",
+  "What creative work — yours or someone else's — are you grateful for?",
+  "What relationship in your life has grown or deepened recently?",
+  "What did you learn today that you're glad to know?",
+  "What is one way your life is better now than it was a year ago?",
+  "What act of kindness are you glad you gave or received?",
+  "What natural beauty did you notice today?",
+  "What routine or habit are you grateful for?",
+  "What piece of advice changed your perspective for the better?",
+  "What is something you accomplished recently that you're proud of?",
+  "What food or meal are you grateful for today?",
+  "What inspires you right now, and why are you grateful for that?",
+  "What is a risk you took that you're glad you took?",
+  "What support system — people or resources — are you thankful for?",
+  "What is one thing about yourself you genuinely appreciate today?"
+];
+
+// Generate 5 unique random prompts — called fresh every page load
+function pickRandomPrompts() {
+  const pool = [...ALL_PROMPTS];
+  const chosen = [];
+  while(chosen.length < 5) {
+    const idx = Math.floor(Math.random() * pool.length);
+    chosen.push(pool.splice(idx, 1)[0]);
+  }
+  return chosen;
+}
+
+// Session-level prompts (new each page load)
+const SESSION_PROMPTS = pickRandomPrompts();
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Legacy fallback for old entries that may not have stored prompts
+function getDailyPrompts_legacy(dateKey) {
+  const hash = dateKey.split('-').reduce((a,b)=>a*31+parseInt(b),7);
+  const indices = []; let seed = hash;
+  while(indices.length < 5) {
+    seed = (seed * 1664525 + 1013904223) & 0x7fffffff;
+    const idx = seed % ALL_PROMPTS.length;
+    if(!indices.includes(idx)) indices.push(idx);
+  }
+  return indices.map(i => ALL_PROMPTS[i]);
+}
+
+/* ══════════════ JOURNAL DATA ══════════════ */
+let journalData = {}; // { 'YYYY-MM-DD': { answers: ['','','','',''] } }
+
+function loadJournal() {
+  try { const r=localStorage.getItem(JOURNAL_KEY); journalData=r?JSON.parse(r):{}; } catch(e){journalData={};}
+  renderJournal();
+}
+function saveJournal() {
+  try { localStorage.setItem(JOURNAL_KEY,JSON.stringify(journalData)); } catch(e){}
+}
+
+function getOrCreateToday() {
+  const key = todayKey();
+  if(!journalData[key]) journalData[key] = { prompts: SESSION_PROMPTS, answers: ['','','','',''] };
+  // If entry exists but has no stored prompts, attach session prompts
+  if(!journalData[key].prompts) journalData[key].prompts = SESSION_PROMPTS;
+  return journalData[key];
+}
+
+function renderJournal() {
+  const entry = getOrCreateToday();
+  // Always use this session's fresh prompts for today's UI
+  const prompts = SESSION_PROMPTS;
+  const filled = entry.answers.filter(a=>a.trim().length>0).length;
+
+  // date header
+  const d = new Date();
+  document.getElementById('j-date-title').textContent =
+    d.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+
+  // streak
+  const streak = calcStreak();
+  document.getElementById('j-streak').textContent = streak;
+  document.getElementById('j-streak-foot').textContent = streak;
+
+  // progress
+  const pct = Math.round(filled/5*100);
+  document.getElementById('j-progress').style.width = pct+'%';
+  document.getElementById('j-filled-count').textContent = filled+' of 5 prompts answered';
+  document.getElementById('tab-journal-badge').textContent = filled+'/5';
+
+  // prompts
+  const container = document.getElementById('j-prompts');
+  container.innerHTML = '';
+  prompts.forEach((q, i) => {
+    const ans = entry.answers[i] || '';
+    const isFilled = ans.trim().length > 0;
+    const card = document.createElement('div');
+    card.className = 'j-prompt-card' + (isFilled?' filled':'');
+    card.id = 'j-card-'+i;
+    card.innerHTML = `
+      <div class="j-prompt-head">
+        <span class="j-prompt-num">PROMPT ${String(i+1).padStart(2,'0')}</span>
+        <span class="j-prompt-text">${q}</span>
+        <div class="j-prompt-check"></div>
+      </div>
+      <textarea class="j-textarea" id="j-ans-${i}" placeholder="type your reflection here..."
+        rows="3" oninput="onJournalInput(${i},this.value)">${ans}</textarea>`;
+    container.appendChild(card);
+  });
+
+  renderJournalPast();
+}
+
+function onJournalInput(idx, val) {
+  const entry = getOrCreateToday();
+  entry.answers[idx] = val;
+  // Persist the current session prompts so past-entry view shows correct questions
+  entry.prompts = SESSION_PROMPTS;
+  saveJournal();
+
+  const filled = entry.answers.filter(a=>a.trim().length>0).length;
+  const pct = Math.round(filled/5*100);
+  document.getElementById('j-progress').style.width = pct+'%';
+  document.getElementById('j-filled-count').textContent = filled+' of 5 prompts answered';
+  document.getElementById('tab-journal-badge').textContent = filled+'/5';
+
+  const card = document.getElementById('j-card-'+idx);
+  if(card) card.className = 'j-prompt-card' + (val.trim()?' filled':'');
+
+  const status = document.getElementById('j-save-status');
+  status.textContent = 'saved';
+  setTimeout(()=>{ status.textContent=''; }, 1500);
+
+  renderJournalPast();
+}
+
+function calcStreak() {
+  let streak = 0;
+  const d = new Date();
+  while(true) {
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const entry = journalData[k];
+    if(entry && entry.answers.some(a=>a.trim().length>0)) {
+      streak++;
+      d.setDate(d.getDate()-1);
+    } else { break; }
+  }
+  return streak;
+}
+
+function renderJournalPast() {
+  const key = todayKey();
+  const past = Object.keys(journalData)
+    .filter(k => k !== key && journalData[k].answers.some(a=>a.trim().length>0))
+    .sort((a,b)=>b.localeCompare(a));
+
+  const renderList = (container) => {
+    if(!past.length) { container.innerHTML='<div style="padding:12px 14px;font-size:11px;color:var(--tp2)">no past entries yet</div>'; return; }
+    container.innerHTML = past.map(k => {
+      const entry = journalData[k];
+    const prompts = entry.prompts || getDailyPrompts_legacy(k);
+      const filled = entry.answers.filter(a=>a.trim().length>0).length;
+      const d = new Date(k+'T00:00:00');
+      const label = d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});
+      const items = prompts.map((q,i)=>{
+        if(!entry.answers[i] || !entry.answers[i].trim()) return '';
+        return `<div class="j-past-item"><div class="j-past-q">${q}</div><div class="j-past-a">${entry.answers[i]}</div></div>`;
+      }).join('');
+      return `<div class="j-past-entry">
+        <button class="j-past-toggle" onclick="togglePast('${k}',this)">
+          <span class="j-past-date">${label}</span>
+          <span class="j-past-meta">${filled}/5</span>
+          <span style="color:var(--tp2);margin-left:6px;font-size:12px">&#9660;</span>
+        </button>
+        <div class="j-past-body" id="jpast-${k}">${items}</div>
+      </div>`;
+    }).join('');
+  };
+  renderList(document.getElementById('j-past-list'));
+  renderList(document.getElementById('drawer-j-past-list'));
+}
+
+function togglePast(key, btn) {
+  const body = document.getElementById('jpast-'+key);
+  if(body) body.classList.toggle('open');
+}
+
+/* ══════════════ TASKS ══════════════ */
+function seed() {
+  const n = Date.now();
+  return [
+    {id:1, title:'Review pull request #247', cat:'work', prio:'high', done:false, ts:n-7200000},
+    {id:2, title:'Morning run — 5km interval training', cat:'health', prio:'med', done:true, ts:n-9000000},
+    {id:3, title:'Read chapter 4 of SICP', cat:'learning', prio:'low', done:false, ts:n-3600000},
+    {id:4, title:'Sync with design team on Q2 roadmap', cat:'work', prio:'high', done:false, ts:n-1800000},
+    {id:5, title:'Grocery shopping + meal prep', cat:'personal', prio:'med', done:true, ts:n-5400000},
+  ];
+}
+function loadTasks() { try{ const r=localStorage.getItem(TASKS_KEY); tasks=r?JSON.parse(r):seed(); }catch(e){tasks=seed();} renderTasks(); }
+function saveTasks() { try{ localStorage.setItem(TASKS_KEY,JSON.stringify(tasks)); }catch(e){} }
+
+function addTask() {
+  const inp=document.getElementById('task-input'), t=inp.value.trim();
+  if(!t) return;
+  tasks.unshift({id:Date.now(),title:t,cat:document.getElementById('sel-cat').value,prio:document.getElementById('sel-prio').value,done:false,ts:Date.now()});
+  inp.value=''; saveTasks(); renderTasks();
+}
+function toggleTask(id){ const t=tasks.find(x=>x.id===id); if(t){t.done=!t.done;saveTasks();renderTasks();} }
+function deleteTask(id){ tasks=tasks.filter(x=>x.id!==id); saveTasks(); renderTasks(); }
+function clearDone(){ tasks=tasks.filter(x=>!x.done); saveTasks(); renderTasks(); }
+
+function setFilter(f,el){
+  taskFilter=f;
+  document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+function getFiltered(){
+  if(taskFilter==='all') return tasks;
+  if(taskFilter==='pending') return tasks.filter(t=>!t.done);
+  if(taskFilter==='done') return tasks.filter(t=>t.done);
+  if(['high','med','low'].includes(taskFilter)) return tasks.filter(t=>t.prio===taskFilter);
+  return tasks.filter(t=>t.cat===taskFilter);
+}
+function fmt(ts){ return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+function renderTasks(){
+  const total=tasks.length, done=tasks.filter(t=>t.done).length, pending=total-done, pct=total?Math.round(done/total*100):0;
+  document.getElementById('s-total').textContent=total;
+  document.getElementById('s-done').textContent=done;
+  document.getElementById('s-pending').textContent=pending;
+  document.getElementById('s-pct').textContent=pct+'%';
+  document.getElementById('mem-use').textContent=total;
+  document.getElementById('tab-task-badge').textContent=pending>0?pending:total;
+  ['cnt-all','d-cnt-all'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=total;});
+  ['cnt-pending','d-cnt-pending'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=pending;});
+  ['cnt-done','d-cnt-done'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=done;});
+
+  const list=document.getElementById('task-list');
+  const f=getFiltered();
+  if(!f.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">&#9632;</div><div>no tasks match current filter</div></div>';return;}
+  const pf=f.filter(t=>!t.done), df=f.filter(t=>t.done);
+  let h='';
+  if(pf.length){h+=`<div class="section-header">pending <div class="section-line"></div>${pf.length}</div>`;pf.forEach(t=>h+=tHTML(t));}
+  if(df.length){h+=`<div class="section-header">completed <div class="section-line"></div>${df.length}</div>`;df.forEach(t=>h+=tHTML(t));}
+  list.innerHTML=h;
+}
+function tHTML(t){
+  const pc=t.prio==='high'?'prio-high':t.prio==='med'?'prio-med':'prio-low';
+  return `<div class="task-item${t.done?' done':''}">
+    <div class="prio-dot ${pc}"></div>
+    <div class="task-check${t.done?' checked':''}" onclick="toggleTask(${t.id})"><div class="check-mark"></div></div>
+    <div class="task-body"><div class="task-title">${t.title}</div>
+      <div class="task-meta"><span class="tag tag-${t.cat}">${t.cat}</span><span class="task-time">${fmt(t.ts)}</span></div>
+    </div>
+    <button class="del-btn" onclick="deleteTask(${t.id})">&#215;</button>
+  </div>`;
+}
+
+/* ══════════════ TABS ══════════════ */
+function switchTab(tab) {
+  currentTab = tab;
+  const app = document.getElementById('app');
+  const tTasks = document.getElementById('tab-tasks');
+  const tJournal = document.getElementById('tab-journal');
+  const pTasks = document.getElementById('page-tasks');
+  const pJournal = document.getElementById('page-journal');
+  const logo = document.getElementById('logo');
+  const mobBtn = document.getElementById('mob-btn');
+
+  if(tab==='tasks'){
+    app.className='mode-tasks';
+    tTasks.classList.add('active'); tJournal.classList.remove('active');
+    pTasks.style.display='flex'; pJournal.style.display='none';
+    document.getElementById('drawer-tasks-content').style.display='block';
+    document.getElementById('drawer-journal-content').style.display='none';
+    mobBtn.textContent='☰ filters';
+    logo.textContent='TaskOS';
+  } else {
+    app.className='mode-journal';
+    tJournal.classList.add('active'); tTasks.classList.remove('active');
+    pTasks.style.display='none'; pJournal.style.display='flex';
+    pJournal.style.flexDirection='column';
+    document.getElementById('drawer-tasks-content').style.display='none';
+    document.getElementById('drawer-journal-content').style.display='block';
+    mobBtn.textContent='☰ entries';
+    logo.textContent='GratOS';
+    renderJournal();
+  }
+}
+
+/* ══════════════ DRAWER ══════════════ */
+function openDrawer(){ document.getElementById('overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); }
+function closeDrawer(){ document.getElementById('overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
+
+/* ══════════════ CLOCK ══════════════ */
+function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent=n.toLocaleTimeString();
+  document.getElementById('date-str').textContent=n.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  const s=Math.floor((Date.now()-sessionStart)/1000);
+  document.getElementById('sess-time').textContent=s<60?s+'s':Math.floor(s/60)+'m '+(s%60)+'s';
+}
+setInterval(tick,1000); tick();
+
+document.getElementById('task-input').addEventListener('keydown',e=>{if(e.key==='Enter')addTask();});
+
+/* ══════════════ INIT ══════════════ */
+loadTasks();
+loadJournal();
+</script>
+</body>
+</html>
