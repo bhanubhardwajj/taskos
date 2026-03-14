@@ -495,8 +495,8 @@ function pickRandomPrompts() {
   return chosen;
 }
 
-// Session-level prompts (new each page load)
-const SESSION_PROMPTS = pickRandomPrompts();
+// Session-level prompts (new each page load, refreshable on completion)
+let currentPrompts = pickRandomPrompts();
 
 function todayKey() {
   const d = new Date();
@@ -528,16 +528,14 @@ function saveJournal() {
 
 function getOrCreateToday() {
   const key = todayKey();
-  if(!journalData[key]) journalData[key] = { prompts: SESSION_PROMPTS, answers: ['','','','',''] };
-  // If entry exists but has no stored prompts, attach session prompts
-  if(!journalData[key].prompts) journalData[key].prompts = SESSION_PROMPTS;
+  if(!journalData[key]) journalData[key] = { prompts: currentPrompts, answers: ['','','','',''] };
+  if(!journalData[key].prompts) journalData[key].prompts = currentPrompts;
   return journalData[key];
 }
 
 function renderJournal() {
   const entry = getOrCreateToday();
-  // Always use this session's fresh prompts for today's UI
-  const prompts = SESSION_PROMPTS;
+  const prompts = currentPrompts;
   const filled = entry.answers.filter(a=>a.trim().length>0).length;
 
   // date header
@@ -582,8 +580,7 @@ function renderJournal() {
 function onJournalInput(idx, val) {
   const entry = getOrCreateToday();
   entry.answers[idx] = val;
-  // Persist the current session prompts so past-entry view shows correct questions
-  entry.prompts = SESSION_PROMPTS;
+  entry.prompts = currentPrompts;
   saveJournal();
 
   const filled = entry.answers.filter(a=>a.trim().length>0).length;
@@ -597,9 +594,55 @@ function onJournalInput(idx, val) {
 
   const status = document.getElementById('j-save-status');
   status.textContent = 'saved';
-  setTimeout(()=>{ status.textContent=''; }, 1500);
+  setTimeout(()=>{ status.textContent=''; }, 1200);
+
+  // All 5 filled → complete this session
+  if(filled === 5) {
+    setTimeout(completeJournalSession, 600);
+  }
 
   renderJournalPast();
+}
+
+function completeJournalSession() {
+  const key = todayKey();
+  const entry = journalData[key];
+  if(!entry) return;
+
+  // Archive under a unique timestamped key so multiple sessions per day work
+  const archiveKey = key + '#' + Date.now();
+  journalData[archiveKey] = { ...entry, completedAt: Date.now() };
+  delete journalData[key];
+  saveJournal();
+
+  // Fresh prompts for the next session
+  currentPrompts = pickRandomPrompts();
+
+  // Show celebration screen
+  const container = document.getElementById('j-prompts');
+  document.getElementById('j-progress').style.width = '100%';
+  document.getElementById('j-filled-count').textContent = 'session complete';
+  document.getElementById('tab-journal-badge').textContent = '5/5';
+
+  container.innerHTML = `
+    <div style="text-align:center;padding:32px 16px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;">
+      <div style="width:56px;height:56px;border-radius:50%;border:2px solid var(--p);display:flex;align-items:center;justify-content:center;">
+        <div style="width:24px;height:14px;border-left:2.5px solid var(--p);border-bottom:2.5px solid var(--p);transform:rotate(-45deg) translateY(-3px);"></div>
+      </div>
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--p);letter-spacing:.06em;text-transform:uppercase;">session complete</div>
+      <div style="font-size:11px;color:var(--tp2);line-height:1.6;max-width:280px;">your reflections have been saved to past entries. ready for another round?</div>
+      <button class="btn btn-primary" onclick="startFreshJournalSession()" style="margin-top:8px;padding:9px 20px;font-size:12px;">+ start new session</button>
+    </div>`;
+
+  renderJournalPast();
+}
+
+function startFreshJournalSession() {
+  // Create a blank today entry with fresh prompts
+  const key = todayKey();
+  journalData[key] = { prompts: currentPrompts, answers: ['','','','',''] };
+  saveJournal();
+  renderJournal();
 }
 
 function calcStreak() {
@@ -617,30 +660,37 @@ function calcStreak() {
 }
 
 function renderJournalPast() {
-  const key = todayKey();
+  const activeKey = todayKey();
+  // Include all keys except the active blank today entry
   const past = Object.keys(journalData)
-    .filter(k => k !== key && journalData[k].answers.some(a=>a.trim().length>0))
+    .filter(k => k !== activeKey && journalData[k].answers && journalData[k].answers.some(a=>a.trim().length>0))
     .sort((a,b)=>b.localeCompare(a));
 
   const renderList = (container) => {
     if(!past.length) { container.innerHTML='<div style="padding:12px 14px;font-size:11px;color:var(--tp2)">no past entries yet</div>'; return; }
-    container.innerHTML = past.map(k => {
+    container.innerHTML = past.map((k, i) => {
       const entry = journalData[k];
-    const prompts = entry.prompts || getDailyPrompts_legacy(k);
+      const prompts = entry.prompts || getDailyPrompts_legacy(k.split('#')[0]);
       const filled = entry.answers.filter(a=>a.trim().length>0).length;
-      const d = new Date(k+'T00:00:00');
+      // Parse display date from key (before # if present)
+      const dateStr = k.split('#')[0];
+      const d = new Date(dateStr + 'T00:00:00');
       const label = d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});
-      const items = prompts.map((q,i)=>{
-        if(!entry.answers[i] || !entry.answers[i].trim()) return '';
-        return `<div class="j-past-item"><div class="j-past-q">${q}</div><div class="j-past-a">${entry.answers[i]}</div></div>`;
+      // If multiple sessions same day, show round number
+      const sameDay = past.filter(x=>x.startsWith(dateStr));
+      const roundNum = sameDay.length > 1 ? ' · round ' + (sameDay.indexOf(k)+1) : '';
+      const domId = 'jpast-' + k.replace(/[^a-z0-9]/gi,'_');
+      const items = prompts.map((q,j)=>{
+        if(!entry.answers[j] || !entry.answers[j].trim()) return '';
+        return `<div class="j-past-item"><div class="j-past-q">${q}</div><div class="j-past-a">${entry.answers[j]}</div></div>`;
       }).join('');
       return `<div class="j-past-entry">
-        <button class="j-past-toggle" onclick="togglePast('${k}',this)">
-          <span class="j-past-date">${label}</span>
+        <button class="j-past-toggle" onclick="togglePast('${domId}')">
+          <span class="j-past-date">${label}${roundNum}</span>
           <span class="j-past-meta">${filled}/5</span>
           <span style="color:var(--tp2);margin-left:6px;font-size:12px">&#9660;</span>
         </button>
-        <div class="j-past-body" id="jpast-${k}">${items}</div>
+        <div class="j-past-body" id="${domId}">${items}</div>
       </div>`;
     }).join('');
   };
@@ -648,8 +698,8 @@ function renderJournalPast() {
   renderList(document.getElementById('drawer-j-past-list'));
 }
 
-function togglePast(key, btn) {
-  const body = document.getElementById('jpast-'+key);
+function togglePast(domId) {
+  const body = document.getElementById(domId);
   if(body) body.classList.toggle('open');
 }
 
