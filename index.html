@@ -74,13 +74,13 @@
     border-bottom: 2px solid transparent; transition: all .2s;
     display: flex; align-items: center; justify-content: center; gap: 8px;
   }
-  .mode-tasks .tab { color: var(--t2); }
+  .mode-tasks .tab { color: var(--t1); }
   .mode-tasks .tab:hover { color: var(--t0); background: var(--bg3); }
   .mode-tasks .tab.active { color: var(--g); border-bottom-color: var(--g); background: var(--bg3); }
-  .mode-journal .tab { color: var(--tp2); }
+  .mode-journal .tab { color: var(--tp1); }
   .mode-journal .tab:hover { color: var(--tp0); background: var(--bgp3); }
   .mode-journal .tab.active { color: var(--p); border-bottom-color: var(--p); background: var(--bgp3); }
-  .tab-badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; }
+  .tab-badge { font-size: 9px; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
   .mode-tasks .tab-badge { background: var(--g-muted); color: var(--g); }
   .mode-journal .tab-badge { background: var(--p-muted); color: var(--p); }
 
@@ -257,13 +257,39 @@
   /* ── Mobile drawer ── */
   .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; }
   .overlay.open { display: block; }
-  .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 200px; overflow-y: auto; padding: 14px 0; z-index: 101; transform: translateX(-100%); transition: transform .2s; }
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 220px;
+    overflow-y: auto; padding: 14px 0; z-index: 101;
+    transform: translateX(-100%); transition: transform .2s;
+    background: #0f150f; border-right: 1px solid #1e2e1e;
+  }
   .drawer.open { transform: translateX(0); }
-  .mode-tasks .drawer { background: var(--bg1); border-right: 1px solid var(--bd); }
-  .mode-journal .drawer { background: var(--bgp1); border-right: 1px solid var(--bdp); }
-  .drawer-close { display: block; margin: 0 14px 10px auto; background: none; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; border: 1px solid; }
-  .mode-tasks .drawer-close { border-color: var(--bd2); color: var(--t1); }
-  .mode-journal .drawer-close { border-color: var(--bdp2); color: var(--tp1); }
+  .drawer.drawer-journal { background: #0f0e17; border-right-color: #1e1c30; }
+  .drawer-close {
+    display: block; margin: 0 14px 12px auto; background: none;
+    font-size: 12px; padding: 5px 12px; border-radius: 4px; cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid #4ade80; color: #4ade80;
+  }
+  .drawer.drawer-journal .drawer-close { border-color: #a78bfa; color: #a78bfa; }
+  .drawer .sidebar-section { color: #6a8f6a; padding: 6px 14px 2px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; margin-top: 6px; }
+  .drawer.drawer-journal .sidebar-section { color: #7a6faa; }
+  .drawer .sidebar-item { color: #a3c4a3; padding: 8px 14px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-left: 2px solid transparent; transition: background .1s; user-select: none; }
+  .drawer .sidebar-item:hover { background: #1a241a; color: #e2f5e2; }
+  .drawer .sidebar-item.active { color: #22c55e; border-left-color: #22c55e; background: #1a241a; }
+  .drawer.drawer-journal .sidebar-item { color: #b8acf0; }
+  .drawer.drawer-journal .sidebar-item:hover { background: #1c1a2e; color: #ede8ff; }
+  .drawer.drawer-journal .sidebar-item.active { color: #a78bfa; border-left-color: #a78bfa; background: #1c1a2e; }
+  .drawer .sidebar-count { margin-left: auto; font-size: 10px; background: #14532d; color: #22c55e; padding: 1px 6px; border-radius: 8px; }
+  .drawer .j-past-toggle { width: 100%; background: none; border: none; padding: 9px 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8acf0; cursor: pointer; display: flex; align-items: center; gap: 8px; text-align: left; }
+  .drawer .j-past-toggle:hover { background: #1c1a2e; }
+  .drawer .j-past-date { color: #a78bfa; font-weight: 500; }
+  .drawer .j-past-meta { margin-left: auto; font-size: 10px; color: #7a6faa; }
+  .drawer .j-past-body { padding: 0 14px 12px; display: none; }
+  .drawer .j-past-body.open { display: block; }
+  .drawer .j-past-item { margin-top: 8px; }
+  .drawer .j-past-q { font-size: 10px; color: #7a6faa; margin-bottom: 3px; }
+  .drawer .j-past-a { font-size: 11px; color: #b8acf0; line-height: 1.5; padding-left: 8px; border-left: 2px solid #7c3aed; }
 
   @media (max-width: 640px) {
     body { padding: 0; }
@@ -709,9 +735,11 @@ function switchTab(tab) {
   const pJournal = document.getElementById('page-journal');
   const logo = document.getElementById('logo');
   const mobBtn = document.getElementById('mob-btn');
+  const drawer = document.getElementById('drawer');
 
   if(tab==='tasks'){
     app.className='mode-tasks';
+    drawer.classList.remove('drawer-journal');
     tTasks.classList.add('active'); tJournal.classList.remove('active');
     pTasks.style.display='flex'; pJournal.style.display='none';
     document.getElementById('drawer-tasks-content').style.display='block';
@@ -720,6 +748,7 @@ function switchTab(tab) {
     logo.textContent='TaskOS';
   } else {
     app.className='mode-journal';
+    drawer.classList.add('drawer-journal');
     tJournal.classList.add('active'); tTasks.classList.remove('active');
     pTasks.style.display='none'; pJournal.style.display='flex';
     pJournal.style.flexDirection='column';
