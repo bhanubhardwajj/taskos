@@ -664,7 +664,7 @@ function seed() {
     {id:5, title:'Grocery shopping + meal prep', cat:'personal', prio:'med', done:true, ts:n-5400000},
   ];
 }
-function loadTasks() { try{ const r=localStorage.getItem(TASKS_KEY); tasks=r?JSON.parse(r):seed(); }catch(e){tasks=seed();} renderTasks(); }
+function loadTasks() { try{ const r=localStorage.getItem(TASKS_KEY); tasks=r?JSON.parse(r):[]; }catch(e){tasks=[];} renderTasks(); }
 function saveTasks() { try{ localStorage.setItem(TASKS_KEY,JSON.stringify(tasks)); }catch(e){} }
 
 function addTask() {
